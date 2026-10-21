@@ -5,8 +5,12 @@ using UnityEngine;
 public class ScenarioRunner : MonoBehaviour
 {
     [SerializeField] private ScenarioConfigSO _scenario;
+    [SerializeField] private ScenarioMode _mode;
 
-    private readonly List<StepRuntime> _steps = new();
+    private readonly Dictionary<string, StepRuntime> _steps = new();
+
+    private IReadOnlyList<StepBatch> _batches;
+    private int _currentBatchIndex;
 
     private void Awake()
     {
@@ -17,12 +21,18 @@ public class ScenarioRunner : MonoBehaviour
             return;
         }
 
-        foreach (var stepConfig in _scenario.Steps)
+        foreach (var config in _scenario.Steps)
         {
-            if (stepConfig == null)
+            if (config == null || string.IsNullOrWhiteSpace(config.StepId))
                 continue;
 
-            _steps.Add(new StepRuntime(stepConfig));
+            if (_steps.ContainsKey(config.StepId))
+            {
+                Debug.LogError($"Duplicate step ID: {config.StepId}");
+                continue;
+            }
+
+            _steps.Add(config.StepId, new StepRuntime(config));
         }
     }
 
@@ -36,13 +46,67 @@ public class ScenarioRunner : MonoBehaviour
         ScenarioEventBus.OnEvent -= HandleEvent;
     }
 
-    private void HandleEvent(ScenarioEvent scenarioEvent)
+    private void Start()
     {
-        foreach (var step in _steps)
+        StartScenario();
+    }
+
+    public void StartScenario()
+    {
+        foreach (var step in _steps.Values)
+            step.Reset();
+
+        _batches = _mode == ScenarioMode.Training
+            ? _scenario.TrainingBatches
+            : _scenario.ExamBatches;
+
+        _currentBatchIndex = 0;
+
+        ActivateCurrentBatch();
+    }
+
+    private void ActivateCurrentBatch()
+    {
+        if (_currentBatchIndex >= _batches.Count)
         {
-            if (step.IsCompleted)
+            Debug.Log("SCENARIO COMPLETED!");
+            return;
+        }
+
+        var batch = _batches[_currentBatchIndex];
+
+        Debug.Log($"BATCH ACTIVATED: {batch.BatchName}");
+
+        foreach (var config in batch.Steps)
+        {
+            if (config == null)
                 continue;
 
+            if (_steps.TryGetValue(config.StepId, out var step))
+            {
+                step.Activate();
+                Debug.Log($"STEP ACTIVATED: {config.StepId}");
+            }
+        }
+    }
+
+    private void HandleEvent(ScenarioEvent scenarioEvent)
+    {
+        if (_batches == null || _currentBatchIndex >= _batches.Count)
+            return;
+
+        // Снимок активных шагов: переход к следующему
+        // пакету не должен обработать то же событие повторно.
+        var activeSteps = new List<StepRuntime>();
+
+        foreach (var step in _steps.Values)
+        {
+            if (step.IsActive)
+                activeSteps.Add(step);
+        }
+
+        foreach (var step in activeSteps)
+        {
             bool matched = step.ProcessEvent(scenarioEvent);
 
             if (!matched)
@@ -55,11 +119,29 @@ public class ScenarioRunner : MonoBehaviour
             );
 
             if (step.IsCompleted)
+                Debug.Log($"STEP COMPLETED: {step.Config.StepId}");
+        }
+
+        CheckBatchCompletion();
+    }
+
+    private void CheckBatchCompletion()
+    {
+        var batch = _batches[_currentBatchIndex];
+
+        foreach (var config in batch.Steps)
+        {
+            if (config == null ||
+                !_steps.TryGetValue(config.StepId, out var step) ||
+                !step.IsCompleted)
             {
-                Debug.Log(
-                    $"STEP COMPLETED: {step.Config.StepId}"
-                );
+                return;
             }
         }
+
+        Debug.Log($"BATCH COMPLETED: {batch.BatchName}");
+
+        _currentBatchIndex++;
+        ActivateCurrentBatch();
     }
 }
