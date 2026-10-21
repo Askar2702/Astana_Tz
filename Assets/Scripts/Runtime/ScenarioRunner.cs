@@ -124,6 +124,7 @@ public class ScenarioRunner : MonoBehaviour
         }
     }
 
+
     private void HandleEvent(ScenarioEvent scenarioEvent)
     {
         if (!_isRunning)
@@ -134,6 +135,10 @@ public class ScenarioRunner : MonoBehaviour
         foreach (var step in _steps.Values)
         {
             if (step.IsFinished)
+                continue;
+
+            if (!string.IsNullOrEmpty(scenarioEvent.TargetStepId) &&
+                step.Config.StepId != scenarioEvent.TargetStepId)
                 continue;
 
             foreach (var condition in step.Config.Conditions)
@@ -168,34 +173,37 @@ public class ScenarioRunner : MonoBehaviour
             return;
         }
 
-        foreach (var step in activeSteps)
+        // Не допускаем неоднозначной обработки.
+        if (activeSteps.Count > 1)
         {
-            var result = step.ProcessEvent(scenarioEvent);
-
-            Debug.Log(
-                $"STEP: {step.Config.StepId} | " +
-                $"RESULT: {result} | " +
-                $"ATTEMPTS: {step.Attempts} | " +
-                $"VIOLATIONS: {step.Violations}"
+            Debug.LogWarning(
+                $"AMBIGUOUS EVENT: {scenarioEvent.EventId}. " +
+                "Specify TargetStepId."
             );
-
-            if (result != StepEventResult.Violation)
-                continue;
-
-            if (_mode == ScenarioMode.Exam)
-            {
-                step.Fail();
-                _groupViolations++;
-
-                Debug.LogWarning(
-                    $"STEP FAILED: {step.Config.StepId} | " +
-                    $"GROUP VIOLATIONS: {_groupViolations}"
-                );
-            }
+            return;
         }
 
-        if (_mode == ScenarioMode.Exam)
+        var targetStep = activeSteps[0];
+        var result = targetStep.ProcessEvent(scenarioEvent);
+
+        Debug.Log(
+            $"STEP: {targetStep.Config.StepId} | " +
+            $"RESULT: {result} | " +
+            $"ATTEMPTS: {targetStep.Attempts} | " +
+            $"VIOLATIONS: {targetStep.Violations}"
+        );
+
+        if (result == StepEventResult.Violation &&
+            _mode == ScenarioMode.Exam)
         {
+            targetStep.Fail();
+            _groupViolations++;
+
+            Debug.LogWarning(
+                $"STEP FAILED: {targetStep.Config.StepId} | " +
+                $"GROUP VIOLATIONS: {_groupViolations}"
+            );
+
             var group = _scenario.ExamGroups[_currentGroupIndex];
 
             if (_groupViolations >= group.MaxViolations)
