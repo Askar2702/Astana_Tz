@@ -1,0 +1,29 @@
+### My ###
+
+# Folders
+ImageSources
+
+# Files
+TODO.txt
+
+### System ###
+
+# File extension
+*.csproj
+*.sln
+
+# Unity
+[Ll]ibrary
+[Tt]emp
+[Oo]bj
+[Bb]uild
+[Bb]uilds
+[Ll]ogs
+[Uu]ser[Ss]ettings
+
+# Visual Studio
+.vs
+.vsconfig
+
+# Rider
+.idea
