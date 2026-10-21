@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 174e5e9b66bde3540a1bc63f3e66240e, type: 3}
   m_Name: Step_01
   m_EditorClassIdentifier: Assembly-CSharp::ScenarioStepSO
-  _stepId: 
+  _stepId: Step_01
   _description: 
