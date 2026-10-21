@@ -14,3 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ScenarioStepSO
   _stepId: Step_01
   _description: 
+  _conditions:
+  - _eventId: button_test
