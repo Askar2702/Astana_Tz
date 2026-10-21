@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿
+using System.Collections.Generic;
 using UnityEngine;
 
 public class ScenarioRunner : MonoBehaviour
@@ -10,6 +11,10 @@ public class ScenarioRunner : MonoBehaviour
 
     private IReadOnlyList<StepBatch> _batches;
     private int _currentBatchIndex;
+
+    private int _currentGroupIndex;
+    private int _groupViolations;
+    private bool _isRunning;
 
     private void Awake()
     {
@@ -55,20 +60,49 @@ public class ScenarioRunner : MonoBehaviour
         foreach (var step in _steps.Values)
             step.Reset();
 
-        _batches = _mode == ScenarioMode.Training
-            ? _scenario.TrainingBatches
-            : _scenario.ExamBatches;
-
+        _currentGroupIndex = 0;
         _currentBatchIndex = 0;
+        _groupViolations = 0;
+        _isRunning = true;
+
+        if (_mode == ScenarioMode.Training)
+        {
+            _batches = _scenario.TrainingBatches;
+            ActivateCurrentBatch();
+        }
+        else
+        {
+            ActivateExamGroup();
+        }
+    }
+
+    private void ActivateExamGroup()
+    {
+        if (_currentGroupIndex >= _scenario.ExamGroups.Count)
+        {
+            FinishScenario();
+            return;
+        }
+
+        var group = _scenario.ExamGroups[_currentGroupIndex];
+
+        _groupViolations = 0;
+        _currentBatchIndex = 0;
+        _batches = group.Batches;
+
+        Debug.Log($"EXAM GROUP ACTIVATED: {group.GroupName}");
 
         ActivateCurrentBatch();
     }
 
     private void ActivateCurrentBatch()
     {
-        if (_currentBatchIndex >= _batches.Count)
+        if (!_isRunning)
+            return;
+
+        if (_batches == null || _currentBatchIndex >= _batches.Count)
         {
-            Debug.Log("SCENARIO COMPLETED!");
+            CompleteCurrentGroup();
             return;
         }
 
@@ -84,15 +118,15 @@ public class ScenarioRunner : MonoBehaviour
             if (_steps.TryGetValue(config.StepId, out var step))
             {
                 step.Activate();
+
                 Debug.Log($"STEP ACTIVATED: {config.StepId}");
             }
         }
     }
 
-
     private void HandleEvent(ScenarioEvent scenarioEvent)
     {
-        if (_batches == null || _currentBatchIndex >= _batches.Count)
+        if (!_isRunning)
             return;
 
         var relatedSteps = new List<StepRuntime>();
@@ -114,26 +148,28 @@ public class ScenarioRunner : MonoBehaviour
 
         if (relatedSteps.Count == 0)
         {
-            Debug.LogWarning(
-                $"UNKNOWN EVENT: {scenarioEvent.EventId}"
-            );
+            Debug.LogWarning($"UNKNOWN EVENT: {scenarioEvent.EventId}");
             return;
         }
 
+        var activeSteps = new List<StepRuntime>();
+
         foreach (var step in relatedSteps)
         {
-            if (!step.IsActive)
-            {
-                if (!_scenario.IgnoreInactiveSteps)
-                {
-                    Debug.LogWarning(
-                        $"OUT OF ORDER: {step.Config.StepId}"
-                    );
-                }
+            if (step.IsActive)
+                activeSteps.Add(step);
+        }
 
-                continue;
-            }
+        if (activeSteps.Count == 0)
+        {
+            if (!_scenario.IgnoreInactiveSteps)
+                Debug.LogWarning($"OUT OF ORDER: {scenarioEvent.EventId}");
 
+            return;
+        }
+
+        foreach (var step in activeSteps)
+        {
             var result = step.ProcessEvent(scenarioEvent);
 
             Debug.Log(
@@ -142,14 +178,60 @@ public class ScenarioRunner : MonoBehaviour
                 $"ATTEMPTS: {step.Attempts} | " +
                 $"VIOLATIONS: {step.Violations}"
             );
+
+            if (result != StepEventResult.Violation)
+                continue;
+
+            if (_mode == ScenarioMode.Exam)
+            {
+                step.Fail();
+                _groupViolations++;
+
+                Debug.LogWarning(
+                    $"STEP FAILED: {step.Config.StepId} | " +
+                    $"GROUP VIOLATIONS: {_groupViolations}"
+                );
+            }
+        }
+
+        if (_mode == ScenarioMode.Exam)
+        {
+            var group = _scenario.ExamGroups[_currentGroupIndex];
+
+            if (_groupViolations >= group.MaxViolations)
+            {
+                SkipRemainingGroupSteps(group);
+                _currentGroupIndex++;
+                ActivateExamGroup();
+                return;
+            }
         }
 
         CheckBatchCompletion();
     }
 
+    private void SkipRemainingGroupSteps(ExamGroup group)
+    {
+        foreach (var batch in group.Batches)
+        {
+            foreach (var config in batch.Steps)
+            {
+                if (config == null ||
+                    !_steps.TryGetValue(config.StepId, out var step) ||
+                    step.IsFinished)
+                    continue;
+
+                step.Skip();
+                Debug.Log($"STEP SKIPPED: {config.StepId}");
+            }
+        }
+    }
 
     private void CheckBatchCompletion()
     {
+        if (_batches == null || _currentBatchIndex >= _batches.Count)
+            return;
+
         var batch = _batches[_currentBatchIndex];
 
         foreach (var config in batch.Steps)
@@ -157,14 +239,35 @@ public class ScenarioRunner : MonoBehaviour
             if (config == null ||
                 !_steps.TryGetValue(config.StepId, out var step) ||
                 !step.IsFinished)
-            {
                 return;
-            }
         }
 
         Debug.Log($"BATCH COMPLETED: {batch.BatchName}");
 
         _currentBatchIndex++;
         ActivateCurrentBatch();
+    }
+
+    private void CompleteCurrentGroup()
+    {
+        if (_mode == ScenarioMode.Training)
+        {
+            FinishScenario();
+            return;
+        }
+
+        Debug.Log(
+            $"EXAM GROUP COMPLETED: " +
+            $"{_scenario.ExamGroups[_currentGroupIndex].GroupName}"
+        );
+
+        _currentGroupIndex++;
+        ActivateExamGroup();
+    }
+
+    private void FinishScenario()
+    {
+        _isRunning = false;
+        Debug.Log("SCENARIO COMPLETED!");
     }
 }

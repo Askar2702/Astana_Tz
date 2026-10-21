@@ -63,17 +63,26 @@
     }
 
 
+
     public void Fail()
     {
-        if (IsActive)
+        if (Status == StepStatus.Active ||
+            Status == StepStatus.Inactive)
+        {
             Status = StepStatus.Failed;
+            CurrentConditionIndex = 0;
+        }
     }
 
     public void Skip()
     {
         if (!IsFinished)
+        {
             Status = StepStatus.Skipped;
+            CurrentConditionIndex = 0;
+        }
     }
+
 
     public void Reset()
     {

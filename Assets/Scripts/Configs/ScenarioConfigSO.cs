@@ -18,9 +18,14 @@ public class ScenarioConfigSO : ScriptableObject
     [Header("Event Handling")]
     [SerializeField] private bool _ignoreInactiveSteps;
 
-    public bool IgnoreInactiveSteps => _ignoreInactiveSteps;
+    [Header("Exam Groups")]
+    [SerializeField] private List<ExamGroup> _examGroups = new();
+
+
 
     public IReadOnlyList<ScenarioStepSO> Steps => _steps;
     public IReadOnlyList<StepBatch> TrainingBatches => _trainingBatches;
     public IReadOnlyList<StepBatch> ExamBatches => _examBatches;
+    public bool IgnoreInactiveSteps => _ignoreInactiveSteps;
+    public IReadOnlyList<ExamGroup> ExamGroups => _examGroups;
 }

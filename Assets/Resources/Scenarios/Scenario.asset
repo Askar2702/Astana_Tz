@@ -16,6 +16,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 3293843c9c8d83d4b804be014f067d00, type: 2}
   - {fileID: 11400000, guid: 7321e57200c283c439e2404675e16f81, type: 2}
   - {fileID: 11400000, guid: 46297eea1b1c35a438bba670ea10967a, type: 2}
+  - {fileID: 11400000, guid: c8833c2a1f52d5a4689d8aa30e799c67, type: 2}
   _trainingBatches:
   - _batchName: Parallel
     _steps:
@@ -25,3 +26,24 @@ MonoBehaviour:
     _steps:
     - {fileID: 11400000, guid: 46297eea1b1c35a438bba670ea10967a, type: 2}
   _examBatches: []
+  _ignoreInactiveSteps: 0
+  _examGroups:
+  - _groupName: Group 1
+    _maxViolations: 2
+    _batches:
+    - _batchName: 'Batches: 1'
+      _steps:
+      - {fileID: 11400000, guid: 3293843c9c8d83d4b804be014f067d00, type: 2}
+      - {fileID: 11400000, guid: 7321e57200c283c439e2404675e16f81, type: 2}
+  - _groupName: Group 2
+    _maxViolations: 2
+    _batches:
+    - _batchName: 'Batches: 1'
+      _steps:
+      - {fileID: 11400000, guid: 46297eea1b1c35a438bba670ea10967a, type: 2}
+  - _groupName: Group 3
+    _maxViolations: 2
+    _batches:
+    - _batchName: 'Batches: 1'
+      _steps:
+      - {fileID: 11400000, guid: c8833c2a1f52d5a4689d8aa30e799c67, type: 2}
