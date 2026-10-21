@@ -1,5 +1,4 @@
-﻿
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public class ScenarioRunner : MonoBehaviour
@@ -90,40 +89,64 @@ public class ScenarioRunner : MonoBehaviour
         }
     }
 
+
     private void HandleEvent(ScenarioEvent scenarioEvent)
     {
         if (_batches == null || _currentBatchIndex >= _batches.Count)
             return;
 
-        // Снимок активных шагов: переход к следующему
-        // пакету не должен обработать то же событие повторно.
-        var activeSteps = new List<StepRuntime>();
+        var relatedSteps = new List<StepRuntime>();
 
         foreach (var step in _steps.Values)
         {
-            if (step.IsActive)
-                activeSteps.Add(step);
-        }
-
-        foreach (var step in activeSteps)
-        {
-            bool matched = step.ProcessEvent(scenarioEvent);
-
-            if (!matched)
+            if (step.IsFinished)
                 continue;
 
-            Debug.Log(
-                $"Step {step.Config.StepId}: " +
-                $"Condition {step.CurrentConditionIndex}/" +
-                $"{step.Config.Conditions.Count}"
-            );
+            foreach (var condition in step.Config.Conditions)
+            {
+                if (condition.EventId != scenarioEvent.EventId)
+                    continue;
 
-            if (step.IsCompleted)
-                Debug.Log($"STEP COMPLETED: {step.Config.StepId}");
+                relatedSteps.Add(step);
+                break;
+            }
+        }
+
+        if (relatedSteps.Count == 0)
+        {
+            Debug.LogWarning(
+                $"UNKNOWN EVENT: {scenarioEvent.EventId}"
+            );
+            return;
+        }
+
+        foreach (var step in relatedSteps)
+        {
+            if (!step.IsActive)
+            {
+                if (!_scenario.IgnoreInactiveSteps)
+                {
+                    Debug.LogWarning(
+                        $"OUT OF ORDER: {step.Config.StepId}"
+                    );
+                }
+
+                continue;
+            }
+
+            var result = step.ProcessEvent(scenarioEvent);
+
+            Debug.Log(
+                $"STEP: {step.Config.StepId} | " +
+                $"RESULT: {result} | " +
+                $"ATTEMPTS: {step.Attempts} | " +
+                $"VIOLATIONS: {step.Violations}"
+            );
         }
 
         CheckBatchCompletion();
     }
+
 
     private void CheckBatchCompletion()
     {
@@ -133,7 +156,7 @@ public class ScenarioRunner : MonoBehaviour
         {
             if (config == null ||
                 !_steps.TryGetValue(config.StepId, out var step) ||
-                !step.IsCompleted)
+                !step.IsFinished)
             {
                 return;
             }
