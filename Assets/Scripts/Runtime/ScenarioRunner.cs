@@ -8,6 +8,8 @@ public class ScenarioRunner : MonoBehaviour
     [SerializeField] private ScenarioMode _mode;
 
     private readonly Dictionary<string, StepRuntime> _steps = new();
+    private readonly ScenarioHistory _history = new();
+    public IReadOnlyList<ScenarioLogEntry> History => _history.Entries;
 
     private IReadOnlyList<StepBatch> _batches;
     private int _currentBatchIndex;
@@ -57,6 +59,7 @@ public class ScenarioRunner : MonoBehaviour
 
     public void StartScenario()
     {
+        _history.Clear();
         foreach (var step in _steps.Values)
             step.Reset();
 
@@ -91,7 +94,7 @@ public class ScenarioRunner : MonoBehaviour
         _batches = group.Batches;
 
         Debug.Log($"EXAM GROUP ACTIVATED: {group.GroupName}");
-
+        AddHistory(null, null, $"GroupActivated: {group.GroupName}");
         ActivateCurrentBatch();
     }
 
@@ -132,14 +135,19 @@ public class ScenarioRunner : MonoBehaviour
 
         var relatedSteps = new List<StepRuntime>();
 
+
         foreach (var step in _steps.Values)
         {
             if (step.IsFinished)
                 continue;
 
-            if (!string.IsNullOrEmpty(scenarioEvent.TargetStepId) &&
-                step.Config.StepId != scenarioEvent.TargetStepId)
+            if (!string.IsNullOrEmpty(scenarioEvent.TargetStepId))
+            {
+                if (step.Config.StepId == scenarioEvent.TargetStepId)
+                    relatedSteps.Add(step);
+
                 continue;
+            }
 
             foreach (var condition in step.Config.Conditions)
             {
@@ -151,11 +159,21 @@ public class ScenarioRunner : MonoBehaviour
             }
         }
 
+
+
         if (relatedSteps.Count == 0)
         {
             Debug.LogWarning($"UNKNOWN EVENT: {scenarioEvent.EventId}");
+
+            AddHistory(
+                scenarioEvent.EventId,
+                scenarioEvent.TargetStepId,
+                "UnknownEvent"
+            );
+
             return;
         }
+
 
         var activeSteps = new List<StepRuntime>();
 
@@ -165,13 +183,23 @@ public class ScenarioRunner : MonoBehaviour
                 activeSteps.Add(step);
         }
 
+
         if (activeSteps.Count == 0)
         {
             if (!_scenario.IgnoreInactiveSteps)
+            {
                 Debug.LogWarning($"OUT OF ORDER: {scenarioEvent.EventId}");
+
+                AddHistory(
+                    scenarioEvent.EventId,
+                    scenarioEvent.TargetStepId,
+                    "OutOfOrder"
+                );
+            }
 
             return;
         }
+
 
         // Не допускаем неоднозначной обработки.
         if (activeSteps.Count > 1)
@@ -180,12 +208,26 @@ public class ScenarioRunner : MonoBehaviour
                 $"AMBIGUOUS EVENT: {scenarioEvent.EventId}. " +
                 "Specify TargetStepId."
             );
+
+            AddHistory(
+                scenarioEvent.EventId,
+                scenarioEvent.TargetStepId,
+                "AmbiguousEvent"
+            );
+
             return;
         }
 
         var targetStep = activeSteps[0];
         var result = targetStep.ProcessEvent(scenarioEvent);
 
+        _history.Add(new ScenarioLogEntry(
+            scenarioEvent.EventId, 
+            targetStep.Config.StepId, 
+            result.ToString(), 
+            targetStep.Attempts, 
+            targetStep.Violations));
+       
         Debug.Log(
             $"STEP: {targetStep.Config.StepId} | " +
             $"RESULT: {result} | " +
@@ -202,6 +244,14 @@ public class ScenarioRunner : MonoBehaviour
             Debug.LogWarning(
                 $"STEP FAILED: {targetStep.Config.StepId} | " +
                 $"GROUP VIOLATIONS: {_groupViolations}"
+            );
+
+            AddHistory(
+                scenarioEvent.EventId,
+                targetStep.Config.StepId,
+                "Failed",
+                targetStep.Attempts,
+                targetStep.Violations
             );
 
             var group = _scenario.ExamGroups[_currentGroupIndex];
@@ -231,6 +281,12 @@ public class ScenarioRunner : MonoBehaviour
 
                 step.Skip();
                 Debug.Log($"STEP SKIPPED: {config.StepId}");
+                _history.Add(new ScenarioLogEntry(
+                    null,
+                    config.StepId,
+                    "Skipped",
+                    step.Attempts,
+                    step.Violations));
             }
         }
     }
@@ -268,14 +324,75 @@ public class ScenarioRunner : MonoBehaviour
             $"EXAM GROUP COMPLETED: " +
             $"{_scenario.ExamGroups[_currentGroupIndex].GroupName}"
         );
-
+        AddHistory(
+            null,
+            null,
+            $"GroupCompleted: {_scenario.ExamGroups[_currentGroupIndex].GroupName}"
+        );
         _currentGroupIndex++;
         ActivateExamGroup();
     }
 
+
     private void FinishScenario()
     {
         _isRunning = false;
+
+        AddHistory(null, null, "ScenarioCompleted");
+
         Debug.Log("SCENARIO COMPLETED!");
+        Debug.Log($"HISTORY ENTRIES: {_history.Entries.Count}");
+
+        foreach (var entry in _history.Entries)
+        {
+            Debug.Log(
+                $"HISTORY | EVENT: {entry.EventId} | " +
+                $"STEP: {entry.StepId} | " +
+                $"RESULT: {entry.Result}"
+            );
+        }
+
+        int score = _mode == ScenarioMode.Training
+            ? ScenarioAnalyzer.CalculateTrainingScore(_history.Entries)
+            : ScenarioAnalyzer.CalculateExamScore(_history.Entries);
+
+        Debug.Log($"FINAL SCORE: {score}");
+
+        int recalculatedScore = _mode == ScenarioMode.Training
+            ? ScenarioAnalyzer.CalculateTrainingScore(_history.Entries)
+            : ScenarioAnalyzer.CalculateExamScore(_history.Entries);
+
+        Debug.Log($"RECALCULATED SCORE: {recalculatedScore}");
+
     }
+
+
+    private void AddHistory(string eventId, string stepId, string result, int attempts = 0, int violations = 0)
+    {
+        _history.Add(new ScenarioLogEntry(eventId, stepId, result, attempts, violations));
+    }
+
+
+    public void RecalculateScore()
+    {
+        if (_isRunning)
+        {
+            Debug.LogWarning("Finish the scenario first!");
+            return;
+        }
+
+        if (_history.Entries.Count == 0)
+        {
+            Debug.LogWarning("History is empty!");
+            return;
+        }
+
+        int score = _mode == ScenarioMode.Training
+            ? ScenarioAnalyzer.CalculateTrainingScore(_history.Entries)
+            : ScenarioAnalyzer.CalculateExamScore(_history.Entries);
+
+        Debug.Log($"MANUAL RECALCULATED SCORE: {score}");
+    }
+
+
 }
