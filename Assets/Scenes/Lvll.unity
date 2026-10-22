@@ -2924,8 +2924,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ScenarioRunner
   _scenario: {fileID: 11400000, guid: 7a74948e960221e46a334c70c8ec7c9b, type: 2}
-  _mode: 0
-  _scoreAnalyzer: {fileID: 11400000, guid: 80301f60f9afe48488a96b893c20cb4c, type: 2}
+  _mode: 1
+  _scoreAnalyzer: {fileID: 11400000, guid: d8e6efed9c9c8414286b569feb02f856, type: 2}
 --- !u!1 &1645151636
 GameObject:
   m_ObjectHideFlags: 0
