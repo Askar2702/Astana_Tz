@@ -7,7 +7,7 @@ public class ScenarioRunner : MonoBehaviour
     [SerializeField] private ScenarioConfigSO _scenario;
     [SerializeField] private ScenarioMode _mode;
     [SerializeField] private ScoreAnalyzerSO _scoreAnalyzer;
-
+    [SerializeField] private ScenarioLoggerSO _logger;
     private readonly Dictionary<string, StepRuntime> _steps = new();
     private readonly ScenarioHistory _history = new();
     public IReadOnlyList<ScenarioLogEntry> History => _history.Entries;
@@ -222,13 +222,15 @@ public class ScenarioRunner : MonoBehaviour
         var targetStep = activeSteps[0];
         var result = targetStep.ProcessEvent(scenarioEvent);
 
-        _history.Add(new ScenarioLogEntry(
-            scenarioEvent.EventId, 
-            targetStep.Config.StepId, 
-            result.ToString(), 
-            targetStep.Attempts, 
-            targetStep.Violations));
-       
+
+        AddHistory(
+            scenarioEvent.EventId,
+            targetStep.Config.StepId,
+            result.ToString(),
+            targetStep.Attempts,
+            targetStep.Violations
+        );
+
         Debug.Log(
             $"STEP: {targetStep.Config.StepId} | " +
             $"RESULT: {result} | " +
@@ -370,7 +372,18 @@ public class ScenarioRunner : MonoBehaviour
 
     private void AddHistory(string eventId, string stepId, string result, int attempts = 0, int violations = 0)
     {
-        _history.Add(new ScenarioLogEntry(eventId, stepId, result, attempts, violations));
+        var entry = new ScenarioLogEntry(
+                       eventId,
+                       stepId,
+                       result,
+                       attempts,
+                       violations
+                   );
+
+        _history.Add(entry);
+
+        if (_logger != null)
+            _logger.Log(entry);
     }
 
 
