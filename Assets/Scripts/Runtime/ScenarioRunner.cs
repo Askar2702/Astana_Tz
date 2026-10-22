@@ -6,6 +6,7 @@ public class ScenarioRunner : MonoBehaviour
 {
     [SerializeField] private ScenarioConfigSO _scenario;
     [SerializeField] private ScenarioMode _mode;
+    [SerializeField] private ScoreAnalyzerSO _scoreAnalyzer;
 
     private readonly Dictionary<string, StepRuntime> _steps = new();
     private readonly ScenarioHistory _history = new();
@@ -352,9 +353,9 @@ public class ScenarioRunner : MonoBehaviour
             );
         }
 
-        int score = _mode == ScenarioMode.Training
-            ? ScenarioAnalyzer.CalculateTrainingScore(_history.Entries)
-            : ScenarioAnalyzer.CalculateExamScore(_history.Entries);
+        int score = _scoreAnalyzer != null
+            ? _scoreAnalyzer.CalculateScore(_history.Entries)
+            : 0;
 
         Debug.Log($"FINAL SCORE: {score}");
 
@@ -387,10 +388,13 @@ public class ScenarioRunner : MonoBehaviour
             return;
         }
 
-        int score = _mode == ScenarioMode.Training
-            ? ScenarioAnalyzer.CalculateTrainingScore(_history.Entries)
-            : ScenarioAnalyzer.CalculateExamScore(_history.Entries);
+        if (_scoreAnalyzer == null)
+        {
+            Debug.LogWarning("Score analyzer is not assigned!");
+            return;
+        }
 
+        int score = _scoreAnalyzer.CalculateScore(_history.Entries);
         Debug.Log($"MANUAL RECALCULATED SCORE: {score}");
     }
 
