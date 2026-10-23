@@ -18,6 +18,71 @@ public class ScenarioRunner : MonoBehaviour
     private int _currentGroupIndex;
     private int _groupViolations;
     private bool _isRunning;
+    public ScenarioMode Mode => _mode;
+    public bool IsRunning => _isRunning;
+
+    public int TotalSteps
+    {
+        get
+        {
+            if (_mode == ScenarioMode.Training)
+            {
+                var ids = new HashSet<string>();
+
+                foreach (var batch in _scenario.TrainingBatches)
+                {
+                    foreach (var step in batch.Steps)
+                    {
+                        if (step != null)
+                            ids.Add(step.StepId);
+                    }
+                }
+
+                return ids.Count;
+            }
+
+            return _steps.Count;
+        }
+    }
+
+    public int CompletedSteps
+    {
+        get
+        {
+            int count = 0;
+
+            foreach (var step in _steps.Values)
+            {
+                if (step.IsFinished)
+                    count++;
+            }
+
+            return count;
+        }
+    }
+
+    public string ActiveSteps
+    {
+        get
+        {
+            var ids = new List<string>();
+
+            foreach (var step in _steps.Values)
+            {
+                if (step.IsActive && !step.IsFinished)
+                    ids.Add(step.Config.StepId);
+            }
+
+            return ids.Count > 0
+                ? string.Join(", ", ids)
+                : "None";
+        }
+    }
+
+    public int CurrentScore =>
+        _scoreAnalyzer != null
+            ? _scoreAnalyzer.CalculateScore(_history.Entries)
+            : 0;
 
     private void Awake()
     {
