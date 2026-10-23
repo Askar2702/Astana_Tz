@@ -161,6 +161,14 @@ public class ScenarioRunner : MonoBehaviour
         }
 
 
+        if (relatedSteps.Count == 0 &&
+            !string.IsNullOrEmpty(scenarioEvent.TargetStepId) &&
+            _steps.TryGetValue(scenarioEvent.TargetStepId, out var finishedStep) &&
+            finishedStep.IsFinished)
+        {
+            return;
+        }
+
 
         if (relatedSteps.Count == 0)
         {
