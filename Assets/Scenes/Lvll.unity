@@ -1797,13 +1797,13 @@ RectTransform:
   - {fileID: 77113367}
   - {fileID: 327361529}
   - {fileID: 135773173}
-  - {fileID: 1419727527}
-  - {fileID: 939180584}
   - {fileID: 977060293}
-  - {fileID: 1701233660}
+  - {fileID: 1419727527}
   - {fileID: 932491011}
   - {fileID: 599610757}
   - {fileID: 1202992193}
+  - {fileID: 939180584}
+  - {fileID: 1701233660}
   m_Father: {fileID: 1646576245}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
